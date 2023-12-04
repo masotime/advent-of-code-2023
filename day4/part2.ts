@@ -68,9 +68,8 @@ export default () => {
 
     // simulate iterating over the cards won
     for (const id in acc) {
-        const originalInstances = acc[id]
         const { cardsWon, cardCount } = iterateCardsEarned(parseInt(id, 10), cardLookup, acc)
-        console.log(`Card ${id}: You have ${originalInstances} instances of this. It has ${cardsWon.length} matching numbers, so you win one copy each of the next cards: ${cardsWon.join(',')}`)
+        console.log(`Card ${id}: You have ${acc[id]} instances of this. It has ${cardsWon.length} matching numbers, so you win ${cardCount} copies each of the next cards: ${cardsWon.join(',')}`)
         for (let i = 0; i < Object.keys(acc).length; i += 5) {
             let row = ''
             for (let c = i; c < i+5 && c < Object.keys(acc).length ; c += 1) {
