@@ -31,13 +31,9 @@ const iterateCardsEarned = (cardId: number, lookup: CardLookup, acc: Accumulator
         }
     }
 
-    // console.log({ cardsWon })
-
     // check how many of cardId you have and append the winnings
     const cardCount = acc[cardId]
-    const copiesWon: Accumulator = {}
     for (const nextCardId of cardsWon) {
-        copiesWon[nextCardId] = cardCount
         acc[nextCardId] += cardCount
     }
 
