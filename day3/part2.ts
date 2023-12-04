@@ -1,4 +1,4 @@
-import { sum } from '../utils';
+import { getAdjacent, intersects } from '../utils';
 import input from './input';
 import { parse } from './parser';
 
@@ -12,34 +12,20 @@ export default () => {
     const numberCandidates: Set<Number> = new Set<Number>(objects.filter(obj => obj.type === 'number') as Number[])
     const gearPairs: Set<[Number, Number]> = new Set<[Number, Number]>()
 
-    for (const symbol of gearSymbols) {
+    for (const gear of gearSymbols) {
         // get all the "adjacent" coordinates
-        const { row, col } = symbol.coordinate
-        const adjacents = [
-            { row: row -1, col: col - 1 },
-            { row: row -1, col: col },
-            { row: row -1, col: col + 1},
-            { row: row, col: col - 1 },
-            { row: row, col: col + 1},
-            { row: row + 1, col: col - 1 },
-            { row: row + 1, col: col },
-            { row: row + 1 , col: col + 1},
-        ]
-
-        // find all adjacent numbers
-
+        const adjacents = getAdjacent(gear.coordinate)
         const matches: Number[] = []
         for (const number of numberCandidates) {
-            if (adjacents.some(coord => number.coordinates.some(({ row, col }) => row === coord.row && col === coord.col))) {
+            if (intersects(adjacents, number.coordinates)) {
                 matches.push(number)
             }
         }
 
-        // if a gear is found, then add it to the gearPairs
+        // if a gear pair is found, then add it to the gearPairs
         if (matches.length === 2) {
             gearPairs.add([matches[0], matches[1]])
         }
-
     }
 
     let answer = 0;

@@ -1,4 +1,4 @@
-import { sum } from '../utils';
+import { getAdjacent, intersects } from '../utils';
 import input from './input';
 import { parse } from './parser';
 
@@ -12,24 +12,12 @@ export default () => {
     const numberCandidates: Set<Number> = new Set<Number>(objects.filter(obj => obj.type === 'number') as Number[])
     const parts: Set<Number> = new Set<Number>()
 
-    // super inefficient but want to finish this first, can optimize later.
     for (const symbol of symbols) {
         // get all the "adjacent" coordinates
-        const { row, col } = symbol.coordinate
-        const adjacents = [
-            { row: row -1, col: col - 1 },
-            { row: row -1, col: col },
-            { row: row -1, col: col + 1},
-            { row: row, col: col - 1 },
-            { row: row, col: col + 1},
-            { row: row + 1, col: col - 1 },
-            { row: row + 1, col: col },
-            { row: row + 1 , col: col + 1},
-        ]
-
+        const adjacents = getAdjacent(symbol.coordinate)
         const matches: Number[] = []
         for (const number of numberCandidates) {
-            if (adjacents.some(coord => number.coordinates.some(({ row, col }) => row === coord.row && col === coord.col))) {
+            if (intersects(adjacents, number.coordinates)) {
                 matches.push(number)
             }
         }
