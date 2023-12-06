@@ -12,6 +12,6 @@ export default () => {
 
     console.log({ time, distanceRecord, lowerBound, upperBound, ways})
 
-    return 'TBD'
+    return ways
     
 }
