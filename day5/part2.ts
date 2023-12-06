@@ -115,7 +115,6 @@ type Range = {
     size: number
 }
 
-
 type World = {
     seeds: Range[],
     seedSoil: Mapper,
@@ -292,10 +291,9 @@ export default () => {
         // Return undefined if there is no intersection
         return undefined;
     }
-
     
-    // simpleRender('temp-humidity', [targetIntersection])
     let intersection = undefined;
+    world.seeds.sort((a,b) => a.start - b.start)
     for (const mapping of seedSoil2) {
         const start1 = mapping.sourceStart
         const length1 = mapping.rangeLength
@@ -325,9 +323,6 @@ export default () => {
     const temperature = world.lightTemperature.getDestination(light)
     const humidity = world.temperatureHumidity.getDestination(temperature)
     const location = world.humidityLocation.getDestination(humidity)
-
-
-
     
     return location
 }
