@@ -1,12 +1,7 @@
 import input from './input';
 
-type Race = {
-    time: number,
-    distanceRecord: number
-}
 export default () => {
     const [timeStr, distanceRecordStr] = input.split('\n').map(line => line.split(':')[1].trim())
-    const races: Race[] = []
 
     const time = parseInt(timeStr.replaceAll(/\s/g, ''), 10)
     const distanceRecord = parseInt(distanceRecordStr.replaceAll(/\s/g, ''), 10)
