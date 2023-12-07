@@ -11,11 +11,6 @@ type CardMap = {
 }
 
 type HandType = 'FiveK' | 'FourK' | 'FullH' | 'ThreeK' | 'TwoP' | 'OneP' | 'HighC'
-type HandAnalysis = {
-    handType: HandType,
-    strength: number,
-    cardMap: CardMap
-}
 
 const cardStrength: { [c in Card]: number} = {    
     'A': 13,
@@ -95,7 +90,6 @@ function getHandType(hand: Hand): HandType {
     }
 
     const distinctCards = Object.keys(cardMap).length
-    let handType: HandType
     switch (distinctCards) {
         case 5:
             return 'HighC';
@@ -113,7 +107,7 @@ function getHandType(hand: Hand): HandType {
         }
         case 2: {
             // could be full house or four of a kind
-            const [first, second] = Object.keys(cardMap) as Card[]
+            const [first] = Object.keys(cardMap) as Card[]
             if (cardMap[first] === 4 || cardMap[first] === 1) {
                 return 'FourK';               
             }
@@ -123,22 +117,6 @@ function getHandType(hand: Hand): HandType {
             return 'FiveK';
         default:
             throw new Error(`Couldn't determine hand type of ${hand}`)
-    }
-}
-
-function analyzeHand(hand: Hand): HandAnalysis {
-    const handType = getHandTypeWithJoker(hand)
-    let cardMap: CardMap = {}
-
-    for (const card of hand) {
-        cardMap[card] = cardMap[card] || 0
-        cardMap[card]! += 1
-    }
-
-    return {
-        handType,
-        strength: handStrength[handType],
-        cardMap
     }
 }
 
@@ -155,7 +133,7 @@ export default () => {
     }
 
     for (const player of world) {
-        console.log(player.hand.join(''), analyzeHand(player.hand).handType)
+        console.log(player.hand.join(''), getHandTypeWithJoker(player.hand))
     }
 
     // now sort the players by hand strength
@@ -169,7 +147,7 @@ export default () => {
         const hand = player.hand.join('')
         const bid = player.bid
         const rank = p+1
-        console.log({ hand, bid, rank })
+        console.log(`${rank} | ${hand} | ${bid}`)
         winnings += bid * rank
     }
     
