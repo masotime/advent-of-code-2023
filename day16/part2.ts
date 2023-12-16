@@ -1,5 +1,6 @@
 import input from './input';
 import type { Coordinate } from '../utils/types'
+import ansi from 'ansi-colors'
 
 type Direction = '^' | 'v' | '>' | '<'
 type Item = '|' | '-' | '/' | '\\' | '.'
@@ -31,6 +32,8 @@ type Maze = {
     }
 }
 
+const decorate = (char: string | number ) => ansi.whiteBright.bold(char.toString())
+
 function render(m: Maze): string {
     let output = ''
     for (let r = 0; r < m.rows; r += 1) {
@@ -38,7 +41,7 @@ function render(m: Maze): string {
             const item = m.items[r][c].item
             const beams = m.items[r][c].beams
             const beamCount = beams.length
-            output += item !== '.' ? item : beamCount > 9 ? '#' : beamCount > 1 ? beamCount : beamCount === 1 ? beams[0].direction : item
+            output += item !== '.' ? item : beamCount > 1 ? decorate(beamCount) : beamCount === 1 ? decorate(beams[0].direction) : item
         }
         output += '\n'
     }
@@ -47,111 +50,70 @@ function render(m: Maze): string {
 }
 
 const isOutOfBounds = (c: Coordinate, m: Maze): boolean => {
-    if (c.row < 0 || c.row >= m.rows) return true;
-    if (c.col < 0 || c.col >= m.cols) return true;
-    return false;
+    return (c.row < 0 || c.row >= m.rows || c.col < 0 || c.col >= m.cols);
 }
 
-const nextPosition = (c: Coordinate, d: Direction): Coordinate => {
-    switch (d) {
-        case '^': return { row: c.row - 1, col: c.col };
-        case 'v': return { row: c.row + 1, col: c.col };
-        case '<': return { row: c.row, col: c.col - 1 };
-        case '>': return { row: c.row, col: c.col + 1 };
+const nextPosition = ({ row, col, direction }: BeamHead): Coordinate => {
+    switch (direction) {
+        case '^': return { row: row - 1, col };
+        case 'v': return { row: row + 1, col };
+        case '<': return { row, col: col - 1 };
+        case '>': return { row, col: col + 1 };
     }
 }
 
-function addBeamHead(m: Maze, beamHeads: BeamHead[], { row, col}: {row: number, col: number}, direction: Direction) {
-    const key = `${row}|${col}|${direction}`
+function addBeamHead(m: Maze, beamHeads: BeamHead[], { row, col }: Coordinate, directions: Direction[]) {
+    for (const direction of directions) {
+        const key = `${row}|${col}|${direction}`
 
-    if (!m.beamHeadRecords[key]) {
-        // this is the only situation to add it
-        m.beamHeadRecords[key] = true
-        beamHeads.push({ row, col, direction })
+        if (!m.beamHeadRecords[key]) {
+            // this is the only situation to add it
+            m.beamHeadRecords[key] = true
+            m.items[row][col].beams.push({ direction })
+            beamHeads.push({ row, col, direction })
+        }
     }
+}
+
+const backslashReflect: { [d in Direction]: Direction } = {
+    '>': 'v',
+    '<': '^',
+    '^': '<',
+    'v': '>'
+}
+
+const forwardslashReflect: { [d in Direction]: Direction } = {
+    '>': '^',
+    '<': 'v',
+    '^': '>',
+    'v': '<'
 }
 
 function simulate(m: Maze): Maze {
     const nextBeamHeads: BeamHead[] = []
     for (const beamHead of m.beamHeads) {
-        const { row, col } = nextPosition({ row: beamHead.row, col: beamHead.col }, beamHead.direction)
-        if (isOutOfBounds({ row, col }, m)) continue;
+        const coord = nextPosition(beamHead)
+        if (isOutOfBounds(coord, m)) continue;
 
-        const nextItem = m.items[row][col].item
+        const { direction } = beamHead
+        const nextItem = m.items[coord.row][coord.col].item
         switch (nextItem) {
             case '.': 
-                addBeamHead(m, nextBeamHeads, { row, col }, beamHead.direction)
-                m.items[row][col].beams.push({ direction: beamHead.direction })
+                addBeamHead(m, nextBeamHeads, coord, [direction])
                 break;
-            case '|': 
-                if (beamHead.direction === '>' || beamHead.direction === '<') {
-                    addBeamHead(m, nextBeamHeads, { row, col }, '^')
-                    addBeamHead(m, nextBeamHeads, { row, col }, 'v')
-                    m.items[row][col].beams.push({ direction: '^' }, { direction: 'v' })
-                } else {
-                    // continue normally
-                    addBeamHead(m, nextBeamHeads, { row, col }, beamHead.direction)
-                    m.items[row][col].beams.push({ direction: beamHead.direction })    
-                }
+            case '|':
+                const isLeftRight = ['<', '>'].includes(direction)
+                addBeamHead(m, nextBeamHeads, coord, isLeftRight ? ['^', 'v'] : [direction])
                 break;
             case '-':
-                if (beamHead.direction === '^' || beamHead.direction === 'v') {
-                    addBeamHead(m, nextBeamHeads, { row, col }, '>')
-                    addBeamHead(m, nextBeamHeads, { row, col }, '<')
-                    m.items[row][col].beams.push({ direction: '<' }, { direction: '>' })
-                } else {
-                    // continue normally
-                    addBeamHead(m, nextBeamHeads, { row, col }, beamHead.direction)
-                    m.items[row][col].beams.push({ direction: beamHead.direction })    
-                }
+                const isUpDown = ['^', 'v'].includes(beamHead.direction)
+                addBeamHead(m, nextBeamHeads, coord, isUpDown ? ['>', '<'] : [direction])
                 break;
-            case '\\':                
-                switch (beamHead.direction) {
-                    case '>':
-                        // > goes down
-                        addBeamHead(m, nextBeamHeads, { row, col }, 'v')                        
-                        m.items[row][col].beams.push({ direction: 'v' })
-                        break;
-                    case '<':
-                        // < goes up
-                        addBeamHead(m, nextBeamHeads, { row, col }, '^')                        
-                        m.items[row][col].beams.push({ direction: '^' })
-                        break;
-                    case '^':
-                        // ^ goes left
-                        addBeamHead(m, nextBeamHeads, { row, col }, '<')
-                        m.items[row][col].beams.push({ direction: '<' })
-                        break;
-                    case 'v':
-                        // v goes right
-                        addBeamHead(m, nextBeamHeads, { row, col }, '>')
-                        m.items[row][col].beams.push({ direction: '>' })
-                        break;
-                }
+            case '\\':
+                addBeamHead(m, nextBeamHeads, coord, [backslashReflect[beamHead.direction]])
                 break;
             case '/':
-                switch (beamHead.direction) {
-                    case '>':
-                        // > goes up
-                        addBeamHead(m, nextBeamHeads, { row, col }, '^')
-                        m.items[row][col].beams.push({ direction: '^' })
-                        break;
-                    case '<':
-                        // < goes down
-                        addBeamHead(m, nextBeamHeads, { row, col }, 'v')
-                        m.items[row][col].beams.push({ direction: 'v' })
-                        break;
-                    case '^':
-                        // ^ goes right
-                        addBeamHead(m, nextBeamHeads, { row, col }, '>')
-                        m.items[row][col].beams.push({ direction: '>' })
-                        break;
-                    case 'v':
-                        // v goes left
-                        addBeamHead(m, nextBeamHeads, { row, col }, '<')
-                        m.items[row][col].beams.push({ direction: '<' })
-                        break;
-                }
+                addBeamHead(m, nextBeamHeads, coord, [forwardslashReflect[beamHead.direction]])
                 break;
         }
         
@@ -160,7 +122,6 @@ function simulate(m: Maze): Maze {
     // all beamheads iterated, now set the new beamheads
     m.beamHeads = nextBeamHeads
     return m;
-
 }
 
 function getEnergized(m: Maze): number {
@@ -194,7 +155,7 @@ export default () => {
         rows: lines.length,
         cols: lines[0].length,
         items: {},
-        beamHeads: [{ row: 0, col: -1, direction: '>' }],
+        beamHeads: [],
         beamHeadRecords: {}
     }
 
@@ -209,47 +170,32 @@ export default () => {
         }
     }
 
-    maze.items[0][0].beams.push({ direction: '>'})
-
-    console.log(render(maze))
-
     // generate all the possible entry points
     const entries: BeamHead[] = []
     let mostEnergized = 0
     
-    for (let r = 0; r <= maze.rows; r += 1) {
-        // left wall entry
-        entries.push({ col: -1, row: r, direction: '>' })
-
-        // right wall entry
-        entries.push({ col: maze.cols, row: r, direction: '<' })
+    for (let row = 0; row <= maze.rows; row += 1) {
+        // left, right wall entry
+        entries.push({ col: -1, row, direction: '>' })
+        entries.push({ col: maze.cols, row, direction: '<' })
     }
 
-    for (let c = 0; c <= maze.cols; c += 1) {
-        // top wall entry
-        entries.push({ col: c, row: -1, direction: 'v' })
-
-        // bottom wall entry
-        entries.push({ col: c, row: maze.rows, direction: '^' })
+    for (let col = 0; col <= maze.cols; col += 1) {
+        // top, bottom wall entry
+        entries.push({ col, row: -1, direction: 'v' })
+        entries.push({ col, row: maze.rows, direction: '^' })
     }
 
     for (const entry of entries) {
         resetMaze(maze)
         maze.beamHeads.push(entry)
-        console.log('----------------------------------')
-        console.log(`[${entry.row}, ${entry.col}] ${entry.direction}`)
-        console.log('----------------------------------')
-
         while(maze.beamHeads.length > 0) {
-            // console.log(render(maze))
             simulate(maze)
-            console.log(maze.beamHeads.length)
         }
-
+        
         const energizedCount = getEnergized(maze)
-        console.log('----------------------------------')
-        console.log(`🔥 [${entry.row}, ${entry.col}] ${entry.direction}: ${energizedCount}`)
-        console.log('----------------------------------')
+        console.log(`🔥 Entering in from [${entry.row}, ${entry.col}] ${entry.direction}: ${energizedCount}`)
+        console.log(render(maze))
         mostEnergized = Math.max(mostEnergized, energizedCount)
     }
 
