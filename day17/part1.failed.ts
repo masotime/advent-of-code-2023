@@ -1,5 +1,5 @@
 import { Coordinate } from '../utils/types';
-import input from './input';
+import input from './sample2';
 import ansi from 'ansi-colors'
 
 type Maze = {
@@ -33,8 +33,7 @@ type Step = {
 
 type Candidate = {
     steps: Step[],
-    cost: number,
-    lastDirs: Direction[]
+    cost: number
 }
 
 const turnLeft: { [dir in Direction]: Direction } = {
@@ -70,94 +69,64 @@ const moveForward = ({ row, col }: Step, direction: Direction, m: Maze): Coordin
     return { row: nextRow, col: nextCol }
 }
 
-const MINIMUM_MOVE = 4
-const MAXIMUM_MOVE = 10
-
-// dirs is assumed to be all in the same direction
-const mustChangeDirection = (dirs: Direction[]): boolean => {
-    return dirs.length === MAXIMUM_MOVE
-}
-
-const MINIMUM_PATTERNS: { [d in Direction]: Direction[] } = {
-    '^': new Array(MINIMUM_MOVE).fill('^'),
-    '<': new Array(MINIMUM_MOVE).fill('<'),
-    'v': new Array(MINIMUM_MOVE).fill('v'),
-    '>': new Array(MINIMUM_MOVE).fill('>')
-}
-
-function turnAndMoveCandidate(candidate: Candidate, dir: Direction, maze: Maze): Candidate | undefined {
-    const newCandidate: Candidate = {
-        steps: [...candidate.steps],
-        cost: candidate.cost,
-        // this candidate might not be returned, so it is safe to set this first
-        lastDirs: MINIMUM_PATTERNS[dir]
-    }
-
-    for (let count = 0; count < MINIMUM_MOVE; count += 1) {
-        const lastStep = newCandidate.steps[newCandidate.steps.length - 1]
-        const nextCoord = moveForward(lastStep, dir, maze)
-        if (!nextCoord) {
-            // don't bother, this won't work, it goes off the map
-            return undefined
-        }
-        newCandidate.cost += maze.items[nextCoord.row][nextCoord.col]
-        newCandidate.steps.push({
-            row: nextCoord.row,
-            col: nextCoord.col,
-            direction: dir
-        })
-    }
-    return newCandidate
+const mustChangeDirection = (steps: Step[]): boolean => {
+    const lastThree = steps.slice(-3).map(step => step.direction)
+    return (lastThree.length === 3) && (lastThree[2] === lastThree[1]) && (lastThree[1] === lastThree[0])
 }
 
 type CostCache = {
-    [key in string]: number
+    [row in number]: {
+        [col in number]: number
+    }
+}
+
+function alreadyVisited(nextCoordinate: Coordinate, steps: Step[]) {
+    return steps.some(step => step.row === nextCoordinate.row && step.col === nextCoordinate.col)
 }
 
 function solve(maze: Maze) {
     let candidates: Candidate[] = [
         // every maze will start with these 2 possibilities
         {
-            steps: new Array(MINIMUM_MOVE).fill(1).map((_, idx) => ({
+            steps: [{
                 row: 0,
-                col: idx + 1,
+                col: 1,
                 direction: '>'
-            })),
-            cost: new Array(MINIMUM_MOVE).fill(1).reduce((acc, _, idx) => acc + maze.items[0][idx + 1], 0),
-            lastDirs: MINIMUM_PATTERNS['>']
+            }],
+            cost: maze.items[0][1]
         },
         {
-            steps: new Array(MINIMUM_MOVE).fill(1).map((_, idx) => ({
-                row: idx + 1,
+            steps: [{
+                row: 1,
                 col: 0,
                 direction: 'v'
-            })),
-            cost: new Array(MINIMUM_MOVE).fill(1).reduce((acc, _, idx) => acc + maze.items[idx + 1][0], 0),
-            lastDirs: MINIMUM_PATTERNS['v']
+            }],
+            cost: maze.items[1][0]
         }]
 
     const costCache: CostCache = {
-        [`0,${MINIMUM_MOVE},>`]: maze.items[0][MINIMUM_MOVE],
-        [`1,0,v`]: maze.items[1][0]
+        0: { 1: maze.items[0][1] },
+        1: { 0: maze.items[1][0] }
     }
 
-    function checkAndSetCache({ row, col }: Coordinate, lastDirs: Direction[], newCost: number): boolean {
-        const key = `${row},${col},${lastDirs.join('')}`
+    function checkAndSetCache({ row, col }: Coordinate, dir: Direction, newCost: number): boolean {
+        costCache[row] = costCache[row] || []
 
-        if (costCache[key] === undefined || newCost < costCache[key]) {
+        if (costCache[row][col] === undefined || newCost < costCache[row][col]) {
             // we have a better result or a new result
-            costCache[key] = newCost
+            costCache[row][col] = newCost
             return true
         }
 
-        return newCost < costCache[key]
+        // return newCost < costCache[row][col]
+        return true
     }
 
     const solutions: Candidate[] = []
 
     while (candidates.length > 0) {
         const candidate = candidates.shift()!
-        const { steps, lastDirs } = candidate
+        const { steps } = candidate
         const lastStep = steps[steps.length - 1]
 
         if (lastStep.row === maze.rows - 1 && lastStep.col === maze.cols - 1) {
@@ -169,58 +138,65 @@ function solve(maze: Maze) {
 
         // figure out what to try next
         // case 1: move in the same direction
-        if (!mustChangeDirection(lastDirs)) {
+        if (!mustChangeDirection(steps)) {
             const nextCoordinate = moveForward(lastStep, lastStep.direction, maze)
-            if (nextCoordinate) {
+            if (nextCoordinate && !alreadyVisited(nextCoordinate, steps)) {
                 const newCost = candidate.cost + maze.items[nextCoordinate.row][nextCoordinate.col]
-                const newDirs = [...lastDirs, lastStep.direction]
-                if (checkAndSetCache(nextCoordinate, newDirs, newCost)) {
+                if (checkAndSetCache(nextCoordinate, lastStep.direction, newCost)) {
                     candidates.push({
                         steps: [...steps, {
                             row: nextCoordinate.row,
                             col: nextCoordinate.col,
                             direction: lastStep.direction
                         }],
-                        cost: newCost,
-                        lastDirs: newDirs // this accumulates
+                        cost: newCost
                     })
                 }
             }
         }
 
-        // case 2: turn left or right, then move forward the MINIMUM_MOVE steps
+        // case 2: turn left or right, then move forward
         const turnLeftDirection = turnLeft[lastStep.direction]
-        const turnLeftCandidate = turnAndMoveCandidate(candidate, turnLeftDirection, maze)
-        if (turnLeftCandidate) {
-            const endingCoord = turnLeftCandidate.steps[turnLeftCandidate.steps.length - 1]
-            const endingCost = turnLeftCandidate.cost
-            const lastDirs = turnLeftCandidate.lastDirs
-
-            if (checkAndSetCache(endingCoord, lastDirs, endingCost)) {
-                candidates.push(turnLeftCandidate)
+        const turnLeftNext = moveForward(lastStep, turnLeftDirection, maze)
+        if (turnLeftNext && !alreadyVisited(turnLeftNext, steps)) {
+            const newCost = candidate.cost + maze.items[turnLeftNext.row][turnLeftNext.col]
+            if (checkAndSetCache(turnLeftNext, turnLeftDirection, newCost)) {
+                candidates.push({
+                    steps: [...steps, {
+                        row: turnLeftNext.row,
+                        col: turnLeftNext.col,
+                        direction: turnLeftDirection
+                    }],
+                    cost: newCost
+                })
             }
         }
 
         const turnRightDirection = turnRight[lastStep.direction]
-        const turnRightCandidate = turnAndMoveCandidate(candidate, turnRightDirection, maze)
-        if (turnRightCandidate) {
-            const endingCoord = turnRightCandidate.steps[turnRightCandidate.steps.length - 1]
-            const endingCost = turnRightCandidate.cost
-            const lastDirs = turnRightCandidate.lastDirs
-
-            if (checkAndSetCache(endingCoord, lastDirs, endingCost)) {
-                candidates.push(turnRightCandidate)
+        const turnRightNext = moveForward(lastStep, turnRightDirection, maze)
+        if (turnRightNext && !alreadyVisited(turnRightNext, steps)) {
+            const newCost = candidate.cost + maze.items[turnRightNext.row][turnRightNext.col]
+            if (checkAndSetCache(turnRightNext, turnRightDirection, newCost)) {
+                candidates.push({
+                    steps: [...steps, {
+                        row: turnRightNext.row,
+                        col: turnRightNext.col,
+                        direction: turnRightDirection
+                    }],
+                    cost: newCost
+                })
             }
         }
 
-
         candidates.sort((a, b) => a.cost - b.cost)
         if (candidates.length % 1000 === 0) {
+            // console.log('attempting to prune candidates')
+            // const pruned = candidates.filter(candidate => !hasLoop(candidate.steps))
+            // console.log(`removed ${candidates.length - pruned.length} loops, left with ${pruned.length}`)
+            // candidates = pruned
             console.log(candidates.length)
         }
     }
-
-    // console.log(costCache)
 
     return solutions;
 }
@@ -247,7 +223,7 @@ export default () => {
     const bestSolution = solutions[0]
 
     solutions.filter(solution => solution.cost === bestSolution.cost).forEach(solution => {
-        console.log(render(maze, solution.steps))
+        console.log(render(maze, bestSolution.steps))
     })
 
     // console.log(bestSolution.steps)
