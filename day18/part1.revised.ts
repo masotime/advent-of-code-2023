@@ -6,7 +6,6 @@ type Direction = 'U' | 'D' | 'L' | 'R'
 type Instruction = {
     direction: Direction
     distance: number
-    colorCode: string
 }
 
 const REGEX = /^(?<direction>[UDLR]) (?<distance>[0-9]+) \(#(?<colorCode>.*)\)$/
@@ -233,7 +232,6 @@ export default () => {
         instructions.push({
             direction: direction as Direction,
             distance: parseInt(distance, 10),
-            colorCode
         })
     }
 
