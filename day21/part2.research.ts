@@ -168,7 +168,7 @@ export default () => {
     // console.log(renderWorld(world, false))
 
     const tilesReachable: number[] = []
-    const STEPS = 42
+    const STEPS = 150
 
     for (let steps = 1; steps <= STEPS; steps += 1) {
         // console.time(ansiColors.whiteBright(`Step ${steps}:`))

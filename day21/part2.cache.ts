@@ -1,7 +1,7 @@
 import ansiColors from 'ansi-colors';
 import { getVerticalAdjacents } from '../utils';
 import { Coordinate } from '../utils/types';
-import input from './input';
+import input from './sample';
 
 type Garden = {
     rows: number,
@@ -99,22 +99,28 @@ function renderWorld(w: World): string {
         }
     }
 
-    for (let gardenRow = minRow; gardenRow <= maxRow; gardenRow += 1) {
-        for (let row = 0; row < w.garden.rows; row += 1) {
-            for (let gardenCol = minCol; gardenCol <= maxCol; gardenCol += 1) {
-                const rawGardenOutput = gardenOutputs[gardenRow]?.[gardenCol]
-                if (!rawGardenOutput) {
-                    // just fill a full row
-                    output += new Array(w.garden.cols).fill('.').join('')
-                } else {
-                    const line = gardenOutputs[gardenRow][gardenCol].split('\n')[row]
-                    output += line
+    try {
+        for (let gardenRow = minRow; gardenRow <= maxRow; gardenRow += 1) {
+            for (let row = 0; row < w.garden.rows; row += 1) {
+                for (let gardenCol = minCol; gardenCol <= maxCol; gardenCol += 1) {
+                    const rawGardenOutput = gardenOutputs[gardenRow]?.[gardenCol]
+                    if (!rawGardenOutput) {
+                        // just fill a full row
+                        output += new Array(w.garden.cols).fill('.').join('')
+                    } else {
+                        const line = gardenOutputs[gardenRow][gardenCol].split('\n')[row]
+                        output += line
+                    }
                 }
+                output += '\n'
             }
-            output += '\n'
         }
+    } catch (err) {
+        console.error(gardenOutputs[0][0])
+        console.error(gardenOutputs[0][1])
+        console.error({ minRow, maxRow, minCol, maxCol })
+        throw err
     }
-
 
     return output
 }
@@ -197,7 +203,9 @@ function simulateStep(w: World, debug: boolean) {
     } = {}
 
     for (const gardenRowKey in w.gardenStates) {
+        const gardenRow = parseInt(gardenRowKey, 10)
         for (const gardenColKey in w.gardenStates[gardenRowKey]) {
+            const gardenCol = parseInt(gardenColKey, 10)
             const currentTileHash = w.gardenStates[gardenRowKey][gardenColKey]
 
             if (nextGardenLookup[currentTileHash]) {
@@ -206,6 +214,22 @@ function simulateStep(w: World, debug: boolean) {
                 const nextGardenCoordinates = gardenCoordinateLookup[nextGardenLookupHash.inbounds]
                 const nextGardenOutboundsCoordinates = gardenCoordinateLookup[nextGardenLookupHash.outbounds]
 
+                if (debug) {
+                    console.log(`For tile ${gardenRow}, ${gardenCol} hash: ${currentTileHash}`)
+                    console.log(renderGarden(w.garden, currentGardenCoordinates))
+                    console.log(`There's a next garden (hash ${nextGardenLookupHash}), which is supposed to be`)
+                    console.log(renderGarden(w.garden, nextGardenCoordinates))
+                    console.log(`with the following outbound states: [${nextGardenOutboundsCoordinates.map(({ row, col }) => `(${row}, ${col})`).join('|')}]`)
+
+                    const { inbounds, outbounds } = deriveNextCoordinates(gardenCoordinateLookup[currentTileHash], w.garden)
+                    if (inbounds.length !== nextGardenCoordinates.length || outbounds.length !== nextGardenOutboundsCoordinates.length) {
+                        console.log(`but the actual inbounds should be`)
+                        console.log(renderGarden(w.garden, inbounds))
+                        console.log(`and the actual outbounds should be [${outbounds.map(({ row, col }) => `(${row}, ${col})`).join('|')}]`)
+                        throw new Error(`wtf`)
+                    }
+
+                }
                 w.gardenStates[gardenRowKey][gardenColKey] = nextGardenLookupHash.inbounds
 
                 outboundsTracker[gardenRowKey] = outboundsTracker[gardenRowKey] || []
@@ -221,6 +245,18 @@ function simulateStep(w: World, debug: boolean) {
                 // get the hash and update the different caches
                 const nextInboundsHash = coordinateHash(inbounds)
                 const nextOutboundsHash = coordinateHash(outbounds)
+                const anyExistingInboundsLookup = gardenCoordinateLookup[nextInboundsHash]
+                const anyExistingOutboundsLookup = gardenCoordinateLookup[nextOutboundsHash]
+
+                if (anyExistingInboundsLookup && anyExistingOutboundsLookup && anyExistingInboundsLookup?.length !== inbounds.length && anyExistingOutboundsLookup?.length !== outbounds.length) {
+                    console.error({ inbounds, anyExistingInboundsLookup, outbounds, anyExistingOutboundsLookup })
+                    console.error(`For the same inbounds`)
+                    console.error(renderGarden(w.garden, anyExistingInboundsLookup))
+                    console.error(`There are 2 different outbounds`)
+                    console.log(`[${outbounds.map(({ row, col }) => `(${row}, ${col})`).join('|')}]`)
+                    console.log(`[${anyExistingOutboundsLookup.map(({ row, col }) => `(${row}, ${col})`).join('|')}]`)
+                    throw new Error(`wtf`)
+                }
 
                 gardenCoordinateLookup[nextInboundsHash] = inbounds
                 gardenCoordinateLookup[nextOutboundsHash] = outbounds
@@ -230,6 +266,11 @@ function simulateStep(w: World, debug: boolean) {
                 }
                 w.gardenStates[gardenRowKey][gardenColKey] = nextInboundsHash
 
+                console.log(`For tile hash ${currentTileHash}, the next hash is ${nextInboundsHash} and has been cached`)
+                console.log(renderGarden(w.garden, gardenCoordinateLookup[currentTileHash]))
+                console.log(`Should become`)
+                console.log(renderGarden(w.garden, gardenCoordinateLookup[nextGardenLookup[currentTileHash].inbounds]))
+                console.log(`With outbounds [${outbounds.map(({ row, col }) => `(${row}, ${col})`).join('|')}]`)
 
                 outboundsTracker[gardenRowKey] = outboundsTracker[gardenRowKey] || []
                 outboundsTracker[gardenRowKey][gardenColKey] = outbounds
@@ -244,11 +285,14 @@ function simulateStep(w: World, debug: boolean) {
         for (const gardenCol in outboundsTracker[gardenRow]) {
             const outbounds = outboundsTracker[gardenRow][gardenCol]
             for (const outbound of outbounds) {
+                // console.log(`Currently in tile ${gardenRow}, ${gardenCol}`)
                 const affectedGardenRow = parseInt(gardenRow) + (outbound.row < 0 ? - 1 : outbound.row >= w.garden.rows ? 1 : 0)
                 const affectedGardenCol = parseInt(gardenCol) + (outbound.col < 0 ? - 1 : outbound.col >= w.garden.cols ? 1 : 0)
                 const normalized = normalizeCoordinate(w.garden, outbound)
+                // console.log(`Considering outbound ${outbound.row}, ${outbound.col}, normalized to ${normalized.row}, ${normalized.col}, should live in ${affectedGardenRow}, ${affectedGardenCol}`)
                 const gardenTileHash = w.gardenStates[affectedGardenRow]?.[affectedGardenCol]
                 if (!gardenTileHash) {
+                    // console.log({ gardenStates: w.gardenStates })
                     // just create a new tile
                     const gardenHash = coordinateHash([normalized])
 
@@ -258,6 +302,7 @@ function simulateStep(w: World, debug: boolean) {
 
                     w.gardenStates[affectedGardenRow] = w.gardenStates[affectedGardenRow] || []
                     w.gardenStates[affectedGardenRow][affectedGardenCol] = gardenHash
+                    // console.log(`Created a new garden tile ${affectedGardenRow}, ${affectedGardenCol} with lookup ${gardenCoordinateLookup[gardenHash]}`)
                 } else {
                     // see if the new coordinate exists in the list. If not, add it and
                     // recalculate the hash for the tile
@@ -267,11 +312,23 @@ function simulateStep(w: World, debug: boolean) {
 
                         const newInbounds = [...tilesReachable, normalized]
                         const gardenHash = coordinateHash(newInbounds)
+                        console.log(`Outbounds produced a new hash`, gardenHash, 'from', gardenTileHash)
+                        // console.log(`Adding to existing list of inbounds ${tilesReachable.inbounds.join(',')} to create ${newInbounds.join(',')}}`)
 
                         // if this doesn't already exists, add it to the cache.
                         // The outbounds remains empty, but this is ok since this isn't registered in nextGardenLookup
                         if (!gardenCoordinateLookup[gardenHash]) {
+                            console.log(`Creating a new garden hash, so originally it was`)
+                            console.log(renderGarden(w.garden, tilesReachable))
+                            console.log(`And now it will be`)
+                            console.log(renderGarden(w.garden, newInbounds))
+                            if (newInbounds.length === 0) {
+                                throw new Error('`wtf`')
+                            }
                             gardenCoordinateLookup[gardenHash] = newInbounds
+                        } else {
+                            console.log(`Warning - it seems the new coordinates for the hash ${gardenHash} already exist`)
+                            console.log(renderGarden(w.garden, gardenCoordinateLookup[gardenHash]))
                         }
 
                         w.gardenStates[affectedGardenRow] = w.gardenStates[affectedGardenRow] || []
@@ -284,61 +341,6 @@ function simulateStep(w: World, debug: boolean) {
     }
 }
 
-function renderTileCount(w: World): string {
-    let output = ''
-    const gardenOutputs: {
-        [row in number]: {
-            [col in number]: number
-        }
-    } = {}
-
-    let minRow = Number.MAX_SAFE_INTEGER
-    let maxRow = Number.MIN_SAFE_INTEGER
-    let minCol = Number.MAX_SAFE_INTEGER
-    let maxCol = Number.MIN_SAFE_INTEGER
-
-    for (const rowStr in w.gardenStates) {
-        const row = parseInt(rowStr)
-        minRow = Math.min(minRow, row)
-        maxRow = Math.max(maxRow, row)
-        for (const colStr in w.gardenStates[rowStr]) {
-            const col = parseInt(colStr)
-            maxCol = Math.max(maxCol, col)
-            minCol = Math.min(minCol, col)
-            const coordinateHash = w.gardenStates[row][col]
-
-            gardenOutputs[row] = gardenOutputs[row] || []
-            gardenOutputs[row][col] = gardenCoordinateLookup[coordinateHash].length
-        }
-    }
-
-    const COLUMN_SIZE = 5
-    const countFrequency: {
-        [count in number]: number
-    } = {}
-
-    for (let gardenRow = minRow; gardenRow <= maxRow; gardenRow += 1) {
-        for (let gardenCol = minCol; gardenCol <= maxCol; gardenCol += 1) {
-            const rawGardenOutput = gardenOutputs[gardenRow]?.[gardenCol]
-            if (!rawGardenOutput) {
-                // just fill a full row
-                output += new Array(COLUMN_SIZE).fill(' ').join('')
-            } else {
-                countFrequency[rawGardenOutput] = countFrequency[rawGardenOutput] || 0
-                countFrequency[rawGardenOutput] += 1
-                const line = rawGardenOutput.toString().padStart(COLUMN_SIZE)
-                output += line
-            }
-        }
-        output += '\n'
-    }
-
-    for (const key in countFrequency) {
-        output += `${key}: ${countFrequency[key]}\n`
-    }
-
-    return output
-}
 function calculateTiles(w: World) {
     let total = 0
     for (const gardenRow in w.gardenStates) {
@@ -388,30 +390,22 @@ export default () => {
         gardenStates: { 0: { 0: initialGardenStartHash } }
     }
 
-    console.log(`Garden is of size ${ansiColors.cyanBright(garden.rows.toString())} by ${ansiColors.cyanBright(garden.cols.toString())}`)
-
-    const STEPS = 1000
-    const OFFSET = 65
+    const STEPS = 150
 
     for (let steps = 1; steps <= STEPS; steps += 1) {
         // console.time(ansiColors.whiteBright(`Step ${steps}:`))
 
         simulateStep(world, true)
         // console.timeEnd(ansiColors.whiteBright(`Step ${steps}:`))
-
-        if (steps % garden.rows === OFFSET) {
-            console.log(ansiColors.whiteBright(`Step ${steps} or (${garden.rows} * ${Math.floor(steps / garden.rows)} + ${OFFSET}):`))
-            console.log(renderTileCount(world))
-            console.log(`Sum should be ${calculateTiles(world)}`)
-        }
-        // console.log(renderWorld(world))
+        console.log(ansiColors.whiteBright(`Step ${steps}:`))
+        console.log(renderWorld(world))
     }
 
 
 
     // console.log({ gardenCoordinateLookup, nextGardenLookup })
 
-    // console.log(renderWorld(world))
+    // console.log(renderWorld(world, false))
     // console.log({ gRows: world.garden.rows, gCols: world.garden.cols, rowBounds: world.rowBounds, colBounds: world.colBounds })
 
     return calculateTiles(world)
