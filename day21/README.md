@@ -10,6 +10,7 @@ Caching only makes it easier to solve up to about step 1000... so there's no cho
 
 tldr; e.g. this output:
 
+```
 Step 982 or (131 * 7 + 65):
                                 979 5758  962                              
                            979 6712 7688 6702  962                         
@@ -40,6 +41,7 @@ Step 982 or (131 * 7 + 65):
 6720: 6
 7656: 36
 7688: 49
+```
 
 1. The input garden is of size 131
 2. The number of steps to solve for is 26501365
