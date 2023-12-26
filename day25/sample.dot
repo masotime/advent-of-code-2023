@@ -1,0 +1,17 @@
+strict graph sample {
+    jqt -- {rhn xhk nvd ntq};
+    rhn -- {jqt xhk bvb hfx};
+    xhk -- {jqt hfx rhn bvb ntq};
+    nvd -- {jqt cmg pzl qnr lhk};
+    rsh -- {frs pzl lsr rzs};
+    frs -- {rsh qnr lhk lsr};
+    pzl -- {rsh lsr hfx nvd};
+    lsr -- {rsh pzl lhk rzs frs};
+    hfx -- {xhk rhn bvb pzl ntq};
+    cmg -- {qnr nvd lhk bvb rzs};
+    qnr -- {cmg nvd rzs frs};
+    lhk -- {cmg nvd lsr frs};
+    bvb -- {cmg rhn xhk hfx ntq};
+    ntq -- {jqt hfx bvb xhk};
+    rzs -- {qnr cmg lsr rsh};
+}
